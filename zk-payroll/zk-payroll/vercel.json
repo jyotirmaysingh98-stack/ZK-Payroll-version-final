@@ -1,0 +1,11 @@
+{
+  "framework": "nextjs",
+  "buildCommand": "next build",
+  "installCommand": "npm install",
+  "outputDirectory": ".next",
+  "env": {
+    "NEXT_PUBLIC_PAYROLL_ROUTER_ADDRESS": "@zk-payroll-router-address",
+    "NEXT_PUBLIC_USDC_ADDRESS": "@zk-payroll-usdc-address",
+    "NEXT_PUBLIC_USDT_ADDRESS": "@zk-payroll-usdt-address"
+  }
+}

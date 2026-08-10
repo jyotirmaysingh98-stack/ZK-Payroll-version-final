@@ -1,0 +1,10 @@
+[
+  "function executePayroll(address payee, address token, uint256 tokenAmount, uint256 fiatAmountCents, bytes3 fiatCurrencyCode, uint256 fmvAtExecution, bytes32 invoiceRef) external returns (uint256)",
+  "function setOnboardingStatus(address subject, bool onboarded, bytes32 attestationHash) external",
+  "function isOnboarded(address subject) external view returns (bool)",
+  "function createVestingGrant(bytes32 grantId, address beneficiary, address token, uint256 totalAmount, uint64 startTimestamp, uint64 cliffSeconds, uint64 durationSeconds, bool revocable) external",
+  "function claimVested(bytes32 grantId) external",
+  "function vestedAmount(bytes32 grantId) external view returns (uint256)",
+  "function payrollRecordCount() external view returns (uint256)",
+  "event PayrollExecuted(uint256 indexed recordId, address indexed payer, address indexed payee, address token, uint256 tokenAmount, uint256 fiatAmountCents, bytes3 fiatCurrencyCode, uint256 fmvAtExecution, bytes32 invoiceRef)"
+]
