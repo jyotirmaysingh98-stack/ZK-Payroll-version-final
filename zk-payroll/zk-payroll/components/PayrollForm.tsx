@@ -200,7 +200,7 @@ export default function PayrollForm() {
         disabled={!quote || stage === "submitting" || stage === "checking_onboarding"}
         className="w-full rounded-lg bg-indigo-600 py-2.5 text-sm font-medium text-white disabled:cursor-not-allowed disabled:bg-neutral-700"
       >
-        {stage === "submitting" ? "Submitting..." : "Execute Payroll"}
+        {stage === "submitting" ? "Submitting..." : "Execute my Payroll"}
       </button>
 
       {message && (
