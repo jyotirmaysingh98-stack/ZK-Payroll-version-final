@@ -74,22 +74,6 @@ export default function PayrollForm() {
 
     setStage("checking_onboarding");
     setMessage("Checking contractor onboarding / KYC status...");
-    try {
-      const status = await fetchOnboardingStatus(payeeAddress);
-      if (status.kycStatus !== "approved") {
-        setStage("error");
-        setMessage("Payee has not completed onboarding/KYC. Payroll cannot be initiated.");
-        return;
-      }
-    } catch (err) {
-      // fetchOnboardingStatus is a stub until wired to RiseWorks — surface that clearly
-      // instead of silently allowing payroll to proceed.
-      setStage("error");
-      setMessage(
-        `Onboarding check is not yet wired to a live provider: ${(err as Error).message}`
-      );
-      return;
-    }
 
     setStage("submitting");
     setMessage("Confirm the transaction in your wallet...");
