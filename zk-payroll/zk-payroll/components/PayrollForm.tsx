@@ -115,6 +115,9 @@ export default function PayrollForm() {
         txOptions // <-- This passes the ETH value to the contract
       );
       const receipt = await tx.wait();
+      setTxHash(receipt.hash);
+      setStage("done");
+      setMessage("Payroll executed and recorded on-chain.");
     } catch (err) {
       setStage("error");
       setMessage((err as Error).message ?? "Transaction failed.");
