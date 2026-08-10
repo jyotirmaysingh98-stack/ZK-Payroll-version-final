@@ -78,33 +78,31 @@ export default function PayrollForm() {
     setStage("submitting");
     setMessage("Confirm the transaction in your wallet...");
     try {
-      if (!window.ethereum) throw new Error("No injected wallet found (e.g. MetaMask).");
-
-      const provider = new BrowserProvider(window.ethereum);
-      await provider.send("eth_requestAccounts", []);
-      const signer = await provider.getSigner();
-
-      const router = new Contract(PAYROLL_ROUTER_ADDRESS, PayrollRouterAbi, signer);
-      const tokenAddress = TOKEN_ADDRESSES[token];
-      const decimals = TOKEN_DECIMALS[token];
-
       const tokenAmountWei = parseUnits(
         quote.tokenAmountWithSlippageBuffer.toFixed(decimals),
         decimals
       );
 
-      const erc20 = new Contract(
-        tokenAddress,
-        ["function approve(address spender, uint256 amount) returns (bool)"],
-        signer
-      );
-      const approveTx = await erc20.approve(PAYROLL_ROUTER_ADDRESS, tokenAmountWei);
-      await approveTx.wait();
+      // 1. ONLY approve if the token is NOT native ETH (the zero address)
+      if (tokenAddress !== "0x0000000000000000000000000000000000000000") {
+        const erc20 = new Contract(
+          tokenAddress,
+          ["function approve(address spender, uint256 amount) returns (bool)"],
+          signer
+        );
+        const approveTx = await erc20.approve(PAYROLL_ROUTER_ADDRESS, tokenAmountWei);
+        await approveTx.wait();
+      }
 
       const fiatAmountCents = Math.round(quote.fiatAmount * 100);
       const fmvAtExecution = priceToFiatCents(quote.quote.priceRaw);
       const invoiceRef = encodeBytes32String(`inv-${Date.now()}`.slice(0, 31));
       const fiatCurrencyBytes3 = "0x" + Buffer.from(fiatCurrency).toString("hex");
+
+      // 2. Attach the ETH value to the transaction if native ETH is selected
+      const txOptions = tokenAddress === "0x0000000000000000000000000000000000000000" 
+        ? { value: tokenAmountWei } 
+        : {};
 
       const tx = await router.executePayroll(
         payeeAddress,
@@ -113,13 +111,10 @@ export default function PayrollForm() {
         fiatAmountCents,
         fiatCurrencyBytes3,
         fmvAtExecution,
-        invoiceRef
+        invoiceRef,
+        txOptions // <-- This passes the ETH value to the contract
       );
       const receipt = await tx.wait();
-
-      setTxHash(receipt.hash);
-      setStage("done");
-      setMessage("Payroll executed and recorded on-chain.");
     } catch (err) {
       setStage("error");
       setMessage((err as Error).message ?? "Transaction failed.");
