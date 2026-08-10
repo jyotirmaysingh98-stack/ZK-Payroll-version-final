@@ -169,27 +169,7 @@ contract PayrollRouter is AccessControl, ReentrancyGuard, Pausable {
         uint64 cliffSeconds,
         uint64 durationSeconds,
         bool revocable
-    ) external onlyRole(PAYROLL_ADMIN_ROLE) {
-        if (!isOnboarded[beneficiary]) revert NotOnboarded(beneficiary);
-        if (totalAmount == 0) revert ZeroAmount();
-
-        // Funds for the grant are pulled and held ONLY as an explicit vesting
-        // escrow (a documented, disclosed exception to pass-through routing —
-        // this must be disclosed to the beneficiary as a lockup, not "your funds
-        // sitting with a custodian silently").
-        IERC20(token).safeTransferFrom(msg.sender, address(this), totalAmount);
-
-        vestingGrants[grantId] = VestingGrant({
-            beneficiary: beneficiary,
-            token: token,
-            totalAmount: totalAmount,
-            claimedAmount: 0,
-            startTimestamp: startTimestamp,
-            cliffSeconds: cliffSeconds,
-            durationSeconds: durationSeconds,
-            revocable: revocable,
-            revoked: false
-        });
+    )
 
         emit VestingGrantCreated(grantId, beneficiary, token, totalAmount);
     }
