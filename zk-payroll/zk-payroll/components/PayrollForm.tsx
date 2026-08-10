@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { BrowserProvider, Contract, parseUnits, encodeBytes32String } from "ethers";
+import { BrowserProvider, Contract, parseUnits, encodeBytes32String, toUtf8Bytes, hexlify } from "ethers";
 import TokenSelector from "./TokenSelector";
 import {
   convertFiatToToken,
@@ -77,13 +77,26 @@ export default function PayrollForm() {
 
     setStage("submitting");
     setMessage("Confirm the transaction in your wallet...");
+    
     try {
+      // 1. Connect to MetaMask
+      if (!window.ethereum) throw new Error("No injected wallet found (e.g. MetaMask).");
+      const provider = new BrowserProvider(window.ethereum);
+      await provider.send("eth_requestAccounts", []);
+      const signer = await provider.getSigner();
+
+      // 2. Define Contract and Token Variables
+      const router = new Contract(PAYROLL_ROUTER_ADDRESS, PayrollRouterAbi, signer);
+      const tokenAddress = TOKEN_ADDRESSES[token];
+      const decimals = TOKEN_DECIMALS[token];
+
+      // 3. Format the Math
       const tokenAmountWei = parseUnits(
         quote.tokenAmountWithSlippageBuffer.toFixed(decimals),
         decimals
       );
 
-      // 1. ONLY approve if the token is NOT native ETH (the zero address)
+      // 4. ONLY approve if the token is NOT native ETH (the zero address)
       if (tokenAddress !== "0x0000000000000000000000000000000000000000") {
         const erc20 = new Contract(
           tokenAddress,
@@ -94,16 +107,20 @@ export default function PayrollForm() {
         await approveTx.wait();
       }
 
+      // 5. Prepare Payload Data
       const fiatAmountCents = Math.round(quote.fiatAmount * 100);
       const fmvAtExecution = priceToFiatCents(quote.quote.priceRaw);
       const invoiceRef = encodeBytes32String(`inv-${Date.now()}`.slice(0, 31));
-      const fiatCurrencyBytes3 = "0x" + Buffer.from(fiatCurrency).toString("hex");
+      
+      // Use ethers hexlify instead of Node.js Buffer to prevent browser crashes
+      const fiatCurrencyBytes3 = hexlify(toUtf8Bytes(fiatCurrency));
 
-      // 2. Attach the ETH value to the transaction if native ETH is selected
+      // 6. Attach the ETH value to the transaction if native ETH is selected
       const txOptions = tokenAddress === "0x0000000000000000000000000000000000000000" 
         ? { value: tokenAmountWei } 
         : {};
 
+      // 7. Execute!
       const tx = await router.executePayroll(
         payeeAddress,
         tokenAddress,
@@ -112,12 +129,14 @@ export default function PayrollForm() {
         fiatCurrencyBytes3,
         fmvAtExecution,
         invoiceRef,
-        txOptions // <-- This passes the ETH value to the contract
+        txOptions
       );
+      
       const receipt = await tx.wait();
       setTxHash(receipt.hash);
       setStage("done");
       setMessage("Payroll executed and recorded on-chain.");
+      
     } catch (err) {
       setStage("error");
       setMessage((err as Error).message ?? "Transaction failed.");
