@@ -72,55 +72,59 @@ export default function PayrollForm() {
       return;
     }
 
-    setStage("checking_onboarding");
-    setMessage("Checking contractor onboarding / KYC status...");
-
     setStage("submitting");
     setMessage("Confirm the transaction in your wallet...");
-    
     try {
-      // 1. Connect to MetaMask
       if (!window.ethereum) throw new Error("No injected wallet found (e.g. MetaMask).");
+
       const provider = new BrowserProvider(window.ethereum);
       await provider.send("eth_requestAccounts", []);
       const signer = await provider.getSigner();
+      const userAddress = await signer.getAddress();
 
-      // 2. Define Contract and Token Variables
-      const router = new Contract(PAYROLL_ROUTER_ADDRESS, PayrollRouterAbi, signer);
       const tokenAddress = TOKEN_ADDRESSES[token];
       const decimals = TOKEN_DECIMALS[token];
 
-      // 3. Format the Math
       const tokenAmountWei = parseUnits(
         quote.tokenAmountWithSlippageBuffer.toFixed(decimals),
         decimals
       );
 
-      // 4. ONLY approve if the token is NOT native ETH (the zero address)
+      // If token is an ERC20 (not native ETH), check balance and approve
       if (tokenAddress !== "0x0000000000000000000000000000000000000000") {
         const erc20 = new Contract(
           tokenAddress,
-          ["function approve(address spender, uint256 amount) returns (bool)"],
+          [
+            "function approve(address spender, uint256 amount) returns (bool)",
+            "function balanceof(address account) view returns (uint256)",
+            "function balanceOf(address account) view returns (uint256)"
+          ],
           signer
         );
+
+        // Check user balance first to prevent silent reverts
+        const balance = await erc20.balanceOf(userAddress);
+        if (balance < tokenAmountWei) {
+          throw new Error(`Insufficient ${token} balance in your wallet. Get testnet tokens from a faucet first.`);
+        }
+
+        setMessage(`Approving ${token} spend...`);
         const approveTx = await erc20.approve(PAYROLL_ROUTER_ADDRESS, tokenAmountWei);
         await approveTx.wait();
       }
 
-      // 5. Prepare Payload Data
+      const router = new Contract(PAYROLL_ROUTER_ADDRESS, PayrollRouterAbi, signer);
+
       const fiatAmountCents = Math.round(quote.fiatAmount * 100);
       const fmvAtExecution = priceToFiatCents(quote.quote.priceRaw);
       const invoiceRef = encodeBytes32String(`inv-${Date.now()}`.slice(0, 31));
+      const fiatCurrencyBytes3 = "0x" + Buffer.from(fiatCurrency).toString("hex").padEnd(6, '0');
+
+      setMessage("Executing payroll transaction...");
       
-      // Use ethers hexlify instead of Node.js Buffer to prevent browser crashes
-      const fiatCurrencyBytes3 = hexlify(toUtf8Bytes(fiatCurrency));
+      // If native ETH is used, pass it via value option, otherwise 0
+      const txOptions = token === "ETH" ? { value: tokenAmountWei } : {};
 
-      // 6. Attach the ETH value to the transaction if native ETH is selected
-      const txOptions = tokenAddress === "0x0000000000000000000000000000000000000000" 
-        ? { value: tokenAmountWei } 
-        : {};
-
-      // 7. Execute!
       const tx = await router.executePayroll(
         payeeAddress,
         tokenAddress,
@@ -131,16 +135,17 @@ export default function PayrollForm() {
         invoiceRef,
         txOptions
       );
-      
       const receipt = await tx.wait();
+
       setTxHash(receipt.hash);
       setStage("done");
       setMessage("Payroll executed and recorded on-chain.");
-      
-    } catch (err) {
+    } catch (err: any) {
       setStage("error");
-      setMessage((err as Error).message ?? "Transaction failed.");
+      console.error(err);
+      setMessage(err?.reason || err?.message || "Transaction failed.");
     }
+  }
   }
 
   return (
